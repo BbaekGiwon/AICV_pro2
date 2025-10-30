@@ -9,13 +9,12 @@ class_list = {
 }
 
 data_dir = "../data/origin"
-# data_dir = "../../../제출-유효성/4. 평가용 데이터셋 + 목록/test"
 save_dir = "../data"
 
 model_path1 = "../model/best_seg_BR_cell.pt"
 model_path2 = "../model/best_seg_BR_class.pt"
 
-batch_size = 1
+batch_size = 2
 
 save_dir_list = [
     f'{save_dir}/preprocessing',
