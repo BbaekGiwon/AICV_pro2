@@ -147,7 +147,7 @@ class PostProcessing():
             cell_class = int(lab[y, x])
             cell_total[..., cell_class] += prd_cell * j
 
-        save_path = f'{save_dir}/seg_result_img/total/{file_name}.npy'
+        save_path = f'{save_dir}/total/{file_name}.npy'
         np.save(save_path, cell_total)
         return cell_total
 
