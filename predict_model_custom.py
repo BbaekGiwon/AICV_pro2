@@ -84,51 +84,43 @@ def post_process_batch_unet(outputs, n_classes=4):
         predicted_arr_data.append(predict_temp)
     return predicted_arr_data
 
-def predict_model(dataloader, model1, model2, keep_images=False):
+def predict_model(dataloader, model1, model2):
+    image_arrays = []
     label_arrays = []
     pred_arrays1 = []
     pred_arrays2 = []
-    if keep_images:
-        image_arrays = []
-
-    with torch.inference_mode():
-        for images, labels, path in tqdm(dataloader):
-            images = images.float().to(device, non_blocking=True)
-            labels = labels.float()  # CPU에만 두고 싶으면 .to(device) 생략 가능
+    with torch.no_grad():
+        for data in tqdm(dataloader):
+                
+            # send the data to the GPU
+            images = data[0].float().to(device)
+            labels = data[1].float().to(device)
+            path = data[2]
 
             outputs1 = model1(images)
-            outputs2 = model2(images)
+            outputs2 = model2(images).to(device)
 
             predict1 = post_process_batch_hovernet(outputs1, n_classes=None)
-            predict2 = post_process_batch_unet(outputs2)  # <-- 위에서 수정한 버전
+            predict2 = post_process_batch_unet(outputs2, len(class_list))
 
-            # 디스크 저장이 필요할 때만 저장 (그리고 바로 메모리에서 버림)
-            if save_dir:
-                file_name = os.path.basename(path[0]).split('.')[0]
-                np.save(f'{save_dir}/predict_results_1/{file_name}.npy', predict1)
-                np.save(f'{save_dir}/predict_results_2/{file_name}.npy', predict2)
+            file_name = os.path.basename(path[0]).split('.')[0]
+            save_path1 = f'{save_dir}/predict_results_1/{file_name}.npy'
+            save_path2 = f'{save_dir}/predict_results_2/{file_name}.npy'
+            
+            np.save(save_path1, predict1)
+            np.save(save_path2, predict2)
+            
 
-            # 메모리에 꼭 필요한 최소만 보관
-            label_arrays.extend(labels.cpu().numpy())
-            pred_arrays1.extend(predict1)      # 가능하면 dtype 축소 권장
+            image_arrays.extend(images.cpu().detach().numpy())
+            label_arrays.extend(labels.cpu().detach().numpy())
+            pred_arrays1.extend(predict1)
             pred_arrays2.extend(predict2)
-
-            if keep_images:
-                image_arrays.extend(images.cpu().numpy())
-
-            # 배치 끝나면 GPU 텐서 즉시 해제
-            del outputs1, outputs2, images
-            torch.cuda.empty_cache()
-
-    # 필요할 때만 반환
-    if keep_images:
-        return (np.transpose(np.array(image_arrays), (0,2,3,1)),
-                np.transpose(np.array(label_arrays), (0,2,3,1)),
-                np.array(pred_arrays1), np.array(pred_arrays2))
-    else:
-        return (None,
-                np.transpose(np.array(label_arrays), (0,2,3,1)),
-                np.array(pred_arrays1), np.array(pred_arrays2))
+            
+    image_arrays = np.transpose(np.array(image_arrays), (0,2,3,1))
+    label_arrays = np.transpose(np.array(label_arrays), (0,2,3,1))
+    pred_arrays1 = np.array(pred_arrays1)
+    pred_arrays2 = np.array(pred_arrays2)
+    return image_arrays, label_arrays, pred_arrays1, pred_arrays2
 
 
 class PostProcessing():
@@ -188,7 +180,7 @@ if __name__ == '__main__':
 
     model1, model2 = model_load()
     print('Done - model_load')
-    image_arrays, label_arrays, pred_arrays1, pred_arrays2 = predict_model(dataloader, model1, model2, args.save_images)
+    image_arrays, label_arrays, pred_arrays1, pred_arrays2 = predict_model(dataloader, model1, model2)
     print('Done - predict_model')
     
     print(image_arrays.shape, np.min(image_arrays), np.max(image_arrays))
